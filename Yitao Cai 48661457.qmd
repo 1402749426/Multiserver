@@ -1,0 +1,392 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+# **Exercise 1**
+
+```{r chunk-11,, fig.width=7, fig.height=5}
+# Step 1: Install and load necessary packages (if not installed, run install.packages(c("readr", "dplyr", "ggplot2", "ggrepel")) first)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggrepel) # For smart label placement
+
+# Step 2: Read CSV data
+data <- read_csv("pisa_2022.csv")
+
+# Step 3: Group by country and calculate average math and reading scores
+avg_scores <- data %>%
+group_by(country) %>%
+summarise(
+avg_math = mean(math, na.rm = TRUE), # na.rm = TRUE handles possible missing values
+avg_read = mean(read, na.rm = TRUE)
+)
+
+# Step 4: Draw a scatter plot (AUS points are red, others are black; labels are placed intelligently using ggrepel)
+ggplot(avg_scores, aes(x = avg_math, y = avg_read)) +
+geom_point(data = subset(avg_scores, country != "AUS"), # Other points: black
+color = "black", size = 2, alpha = 0.8) +
+geom_point(data = subset(avg_scores, country == "AUS"), # AUS points: red, stand out
+color = "red", size = 3, alpha = 0.9) + # Slightly larger for emphasis
+geom_text_repel( # Smart labeling using ggrepel
+aes(label = country),
+size = 3, # Label font size
+box.padding = 0.5, # Label spacing
+point.padding = 0.3, # Spacing between point and label
+max.overlaps = 10, # If you modify: Limit overlapping labels to a maximum of 10
+segment.color = "grey50", # Connector color
+segment.size = 0.2 # Connector thickness
+) +
+labs(
+title = "Average Mathematics and Reading Scores of Students Across Countries (AUS Highlighted)",
+x = "Mean Scores in Mathematics",
+y = "Mean Scores in Reading"
+) +
+theme_minimal() # Use a minimalist theme
+
+
+```
+
+```{r chunk-12,, fig.width=7, fig.height=5}
+# Load necessary packages
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(cowplot) # Used to merge charts and extract legends
+
+# Step 1: Read CSV data (for your complete data set of 80 countries)
+data <- read.csv("pisa_2022.csv")
+
+# Step 2: Calculate mean scores for each country and gender
+mean_scores <- data %>%
+group_by(country, gender) %>%
+summarise(
+math_mean = mean(math),
+read_mean = mean(read),
+science_mean = mean(science),
+.groups = 'drop'
+)
+
+# Step 3: Calculate diff = female_mean - male_mean
+wide_data <- mean_scores %>%
+pivot_wider(names_from = gender, values_from = c(math_mean, read_mean, science_mean))
+
+# Check column names (for debugging, can be deleted)
+#print("Wide format data column names:")
+#print(colnames(wide_data))
+
+diff_data <- wide_data %>%
+
+mutate(
+math_diff = math_mean_female - math_mean_male,
+read_diff = read_mean_female - read_mean_male,
+science_diff = science_mean_female - science_mean_male
+) %>%
+
+select(country, math_diff, read_diff, science_diff) %>%
+
+# Convert country to a factor and sort alphabetically
+
+mutate(country = factor(country, levels = unique(country[order(country)])))
+
+# Output diff values ​​(optional, for inspection)
+#print("Gender differences in subjects for each country (female - male):")
+#print(diff_data)
+
+# Step 4: Draw a scatter plot for each subject (add Boys/Girls labels + zero reference line)
+# Math scatter plot (left, showing Y axis)
+p_math <- ggplot(diff_data, aes(x = math_diff, y = country, color = math_diff > 0)) +
+geom_point(size = 2, alpha = 0.7) +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) + # Zero reference line
+annotate("text", x = -max(abs(diff_data$math_diff))*0.3, y = Inf, label = "Boys",
+hjust = 0, vjust = 1.5, size = 2, color = "gray50") + # Boys label (left)
+annotate("text", x = max(abs(diff_data$math_diff))*0.3, y = Inf, label = "Girls",
+hjust = 1, vjust = 1.5, size = 2, color = "gray50") + # Girls label (right)
+scale_color_manual(values ​​= c("TRUE" = "blue", "FALSE" = "red"),
+) +
+labs(title = "mean_math",
+x = "diff", y = "country",
+color = "diff > 0") +
+theme_minimal() +
+theme(axis.text.y = element_text(size = 8), # Y-axis font
+legend.position = "none") + # Hide the legend for this plot (will be extracted later)
+NULL
+
+# Read the scatter plot (center, hide the Y axis)
+p_read <- ggplot(diff_data, aes(x = read_diff, y = country, color = read_diff > 0)) + 
+geom_point(size = 2, alpha = 0.7) + 
+geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) + 
+annotate("text", x = -max(abs(diff_data$read_diff))*0.3, y = Inf, label = "Boys", 
+hjust = 0, vjust = 1.5, size = 2, color = "gray50") + 
+annotate("text", x = max(abs(diff_data$read_diff))*0.3, y = Inf, label = "Girls", 
+hjust = 1, vjust = 1.5, size = 2, color = "gray50") + 
+scale_color_manual(values ​​= c("TRUE" = "blue", "FALSE" = "red"), ) +
+labs(title = "mean_read",
+x = "diff", y = NULL, # Hide Y title
+color = NULL) +
+theme_minimal() +
+theme(axis.text.y = element_blank(), # Hide Y scale
+axis.title.y = element_blank(),
+legend.position = "none") +
+NULL
+
+# Science scatter plot (right side, hide Y axis)
+p_science <- ggplot(diff_data, aes(x = science_diff, y = country, color = science_diff > 0)) +
+geom_point(size = 2, alpha = 0.7) +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) +
+annotate("text", x = -max(abs(diff_data$science_diff))*0.3, y = Inf, label = "Boys", 
+hjust = 0, vjust = 1.5, size = 2, color = "gray50") + 
+annotate("text", x = max(abs(diff_data$science_diff))*0.3, y = Inf, label = "Girls", 
+hjust = 1, vjust = 1.5, size = 2, color = "gray50") + 
+scale_color_manual(values ​​= c("TRUE" = "blue", "FALSE" = "red"), 
+) + 
+labs(title = "mean_sci", 
+x = "diff", y = NULL, 
+color = NULL) + 
+theme_minimal() + 
+theme(axis.text.y = element_blank(), 
+axis.title.y = element_blank(), 
+legend.position = "none") + 
+NULL
+
+# Step 5: Extract the unified legend (from p_math)
+legend <- get_legend(p_math + theme(legend.position = "right")) # Extract and move to the right
+
+# Remove the legend from p_math (redefine the legendless version)
+p_math_no_legend <- p_math + theme(legend.position = "none")
+
+# Merge three plots (horizontally, with a shared Y axis)
+combined_plots <- plot_grid(p_math_no_legend, p_read, p_science,
+ncol = 3, nrow = 1, align = "h",
+rel_widths = c(1, 1, 1), # Equal widths
+labels = c("A", "B", "C"),
+label_x = 0.02, label_y = 0.98)
+
+# Add the legend to the right
+combined_plot <- plot_grid(combined_plots, legend,
+ncol = 2, nrow = 1, rel_widths = c(3, 0.5)) # Plot:Legend = 3:0.5
+
+# Display the combined plot
+print(combined_plot)
+
+
+```
+
+# **Exercise 2**
+
+```{r}
+
+# Load necessary packages
+library(ggplot2)
+
+# Read the CSV file, skipping the first 10 rows of metadata
+data <- read.csv("aus_median_house_price.csv", skip = 10, stringsAsFactors = FALSE)
+
+# View the data structure (optional, for debugging)
+# head(data)
+# str(data)
+
+# The first column is the time (date), converted to a standard date format (assuming quarterly end, e.g., Mar-2002 is converted to 2002-03-31)
+data$Date <- as.Date(paste0(data[,1], "-01"), format = "%b-%Y-%d")
+# More precise quarterly conversion: map Mar-2002 to 2002-03-31, Jun-2002 to 2002-06-30, etc.
+months <- c("Mar" = "03-31", "Jun" = "06-30", "Sep" = "09-30", "Dec" = "12-31")
+data$Date <- as.Date(paste0(substring(data[,1], 5, 8), "-", months[substring(data[,1], 1, 3)],
+substring(data[,1], 1, 3)), format = "%Y-%m-%d")
+
+# Extract Melbourne median house price (4th column)
+melbourne_prices <- data[, 4] # Assuming the 4th column is Melbourne prices, based on the CSV structure
+melbourne_df <- data.frame(Date = data$Date, Price = as.numeric(melbourne_prices))
+
+# Remove NA values ​​(if there are empty data)
+melbourne_df <- na.omit(melbourne_df)
+
+# Draw a line chart
+ggplot(melbourne_df, aes(x = Date, y = Price)) +
+geom_line(color = "blue", size = 1) +
+geom_point(color = "red", size = 0.5) + # Add points to highlight data points
+labs(title = "Median Price Trend for Existing Houses in Melbourne",
+x = "Time (Quarterly)",
+y = "Median Price ($'000)") +
+theme_minimal() +
+theme(plot.title = element_text(hjust = 0.5, size = 14),
+axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate the x-axis labels to avoid overlap
+
+
+
+
+```
+
+```{r}
+# Load necessary packages
+library(ggplot2)
+library(lubridate)
+
+# Read the house CSV file, skipping the first 10 rows of metadata
+house_data <- read.csv("aus_median_house_price.csv", skip = 10, stringsAsFactors = FALSE)
+
+# Parse the house date ("Mar-2002" → 2002-03-31)
+months <- c("Mar" = "03-31", "Jun" = "06-30", "Sep" = "09-30", "Dec" = "12-31")
+house_data$Date <- as.Date(paste0(substring(house_data[,1], 5, 8), "-", months[substring(house_data[,1], 1, 3)]))
+
+# Extract Melbourne median house price (column 4)
+melbourne_df <- data.frame(Date = house_data$Date, Price = as.numeric(house_data[, 4]))
+melbourne_df <- na.omit(melbourne_df) # Remove NA
+
+# Read GDP CSV
+gdp_data <- read.csv("aus_GDP_changes.csv", stringsAsFactors = FALSE)
+
+# Parse GDP date ("1/1/2002" → 2002-03-31; parts[1] is fixed "1", parts[2] is quarter code "1/4/7/10")
+gdp_data$Date <- NA
+for (i in 1:nrow(gdp_data)) {
+date_str <- gdp_data$DATE[i]
+parts <- strsplit(date_str, "/")[[1]] 
+if (length(parts) == 3) { 
+qmonth <- parts[2] 
+year <- parts[3] 
+month_end <- switch(qmonth, "1" = "03-31", "4" = "06-30", "7" = "09-30", "10" = "12-31") 
+if (!is.null(month_end)) { 
+gdp_data$Date[i] <- as.Date(paste0(year, "-", month_end)) 
+} 
+}
+}
+gdp_data$Date <- as.Date(gdp_data$Date)
+gdp_data <- gdp_data[!is.na(gdp_data$Date), ] # Remove invalid dates
+gdp_data$GDP_changes <- as.numeric(gdp_data$GDP_changes) # Convert to numeric values
+gdp_data <- na.omit(gdp_data) # Remove NAs
+
+# Filter housing data for the time period (2002-03-31 to 2025-06-30)
+start_date <- as.Date("2002-03-31")
+end_date <- as.Date("2025-06-30")
+gdp_filtered <- gdp_data[gdp_data$Date >= start_date & gdp_data$Date <= end_date, ]
+
+# Identify periods of low growth (<0.1%)
+low_gdp <- gdp_filtered[gdp_filtered$GDP_changes < 0.1, ]
+
+# Add a new variable to the housing data: low_gdp (TRUE if low growth occurred in that quarter)
+melbourne_df$low_gdp <- melbourne_df$Date %in% low_gdp$Date
+
+# Create a shadow rectangle data frame (for each low growth quarter: xmin = quarter start, xmax = quarter end)
+shadow_df <- data.frame(
+xmin = floor_date(low_gdp$Date, "quarter"),
+xmax = ceiling_date(low_gdp$Date, "quarter") - days(1), # day before quarter end
+ymin = min(melbourne_df$Price) - 50, # price range buffer
+ymax = max(melbourne_df$Price) + 50
+)
+
+# Draw a line chart + shadow
+p <- ggplot(melbourne_df, aes(x = Date, y = Price)) +
+geom_rect(data = shadow_df, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "red", alpha = 0.2, inherit.aes = FALSE) + # Shaded area
+geom_line(color = "blue", size = 1) +
+geom_point(color = "red", size = 0.5) +
+labs(title = "Trend in Melbourne's median price of existing homes (shaded: GDP growth <0.1%)",
+x = "Time (quarterly)",
+y = "Median price ($'000)") +
+theme_minimal() +
+theme(plot.title = element_text(hjust = 0.5, size = 14),
+axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Show the plot
+print(p)
+
+# See an example of the new variable (optional debugging)
+# head(melbourne_df)
+
+```
+
+# **Exercise 3**
+
+```{r}
+install.packages("RSQLite")
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+# Load necessary packages
+library(dplyr)
+library(dbplyr)
+library(DBI)
+library(RSQLite)
+
+# Step 1: Create a SQLite database connection and load the CSV data (assuming the CSV is already prepared)
+# This simulates the import; in real life, you may have already done this step
+con <- dbConnect(duckdb::duckdb()) # Using an in-memory database as an example
+# Import the CSV into a table (using readr or a similar package, then dbWriteTable)
+# Example: dbWriteTable(con, "actors", read.csv("Actors.csv"))
+# dbWriteTable(con, "movies", read.csv("Movies.csv"))
+# dbWriteTable(con, "directors", read.csv("Directors.csv"))
+# dbWriteTable(con, "castings", read.csv("Castings.csv"))
+
+# Steps 2: Create a dbplyr table view
+actors <- tbl(con, "actors")
+movies <- tbl(con, "movies")
+directors <- tbl(con, "directors")
+castings <- tbl(con, "castings")
+
+# Step 3: Find the most common director-actor partnerships
+# Join tables: castings -> movies (by MovieID) -> directors (by DirectorID)
+# Then join actors (by ActorID)
+# Group and count the number of partnerships (each movie counts as one partnership), sorting in descending order
+partnerships <- castings %>%
+inner_join(movies, by = "MovieID") %>%
+inner_join(directors, by = c("DirectorID" = "DirectorID")) %>%
+inner_join(actors, by = c("ActorID" = "ActorID")) %>%
+group_by(Name.x, Name.y) %>% # Name.x is the director's name, Name.y is the actor's name (adjusted to the CSV column names)
+summarise(
+count = n(), # Count the number of collaborative films
+.groups = "drop"
+) %>%
+arrange(desc(count))
+
+# Step 4: Display the generated SQL query (using show_query())
+show_query(partnerships)
+
+# Step 5: Execute the query and view the results (optional, for verification)
+# collect(partnerships) # Pull the results back into R memory for viewing
+
+
+
+
+```
+
+```{r}
+
+show_query(partnerships)
+```
+
+```{r}
+# Dbplyr equivalent query
+actor_stats <- actors_db %>%
+rename(Name.x = Name) %>% # Alias Name.x (actor name)
+left_join(castings_db, by = "ActorID") %>%
+left_join(movies_db, by = "MovieID") %>%
+left_join(directors_db %>% rename(Name.y = Name), by = "DirectorID") %>% # Alias Name.y (director name)
+group_by(Name.x) %>%
+summarise(
+unique_directors = n_distinct(Name.y, na.rm = TRUE),
+total_movies = n(),
+.groups = "drop"
+) %>%
+arrange(desc(unique_directors))
+
+# Execute and collect results (collect() converts the lazy query to a data frame)
+result <- collect(actor_stats)
+
+# Display the results
+print(result)
+
+# Display the generated SQL query (equivalent to show_query())
+show_query(actor_stats)
+```
+
+# **Exercise 4**
+
+# **Exercise 5**
