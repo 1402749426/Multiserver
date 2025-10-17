@@ -1,0 +1,184 @@
+---
+title: "Exercise 1"
+format: html
+editor: visual
+---
+
+
+
+```{r load, warning = FALSE, message = FALSE}
+# Load necessary packages
+library(readr)
+
+library(ggrepel)  
+
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(cowplot)  
+```
+
+```{r 1,warning = FALSE}
+
+
+# Read CSV data
+data <- read_csv("pisa_2022.csv")
+
+# Calculate average math and reading scores by country
+avg_scores <- data %>%
+  group_by(country) %>%
+  summarise(
+    avg_math = mean(math, na.rm = TRUE),  
+    avg_read = mean(read, na.rm = TRUE)
+  )
+
+# Draw a scatter plot
+ggplot(avg_scores, aes(x = avg_math, y = avg_read)) +
+  geom_point(color = "black", size = 3, alpha = 0.8) +  
+  geom_label_repel(  
+    aes(label = country),
+    fill = "white",
+    colour = "black",
+    label.r = 0.15,
+    label.size = 0.25,
+    size = 3,
+    box.padding = 0.5,   
+    point.padding = 0.3, 
+    max.overlaps = 12,
+    segment.color = "grey50",
+    segment.size = 0.2
+  ) +
+  labs(
+    title = "Average reading against average maths for each country ",
+    subtitle = "Any guesses on where Australia ranks?", 
+    x = "mean scores in mathematics",
+    y = "mean scores in reading"
+  ) +
+  theme_minimal()  
+
+
+
+```
+
+```{r 2, warning = FALSE}
+
+
+data <- read.csv("pisa_2022.csv")
+
+# Calculate the average score for each country and gender
+mean_scores <- data %>%
+  group_by(country, gender) %>%
+  summarise(
+    math_mean = mean(math),
+    read_mean = mean(read),
+    science_mean = mean(science),
+    .groups = 'drop'
+  )
+
+# Calculate diff = female_mean - male_mean
+wide_data <- mean_scores %>%
+  pivot_wider(names_from = gender, values_from = c(math_mean, read_mean, science_mean))
+
+diff_data <- wide_data %>%
+  mutate(
+    math_diff = math_mean_female - math_mean_male,
+    read_diff = read_mean_female - read_mean_male,
+    science_diff = science_mean_female - science_mean_male
+  ) %>%
+  select(country, math_diff, read_diff, science_diff) %>%
+
+  mutate(country = factor(country, levels = unique(country[order(country)])))
+
+# Draw a scatter plot for each subject
+
+p_math <- ggplot(diff_data, aes(x = math_diff, y = country, color = math_diff > 0)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) +  
+  annotate("text", x = -30, y = -Inf, label = "boys", 
+           hjust = 0, vjust = -0.5, size = 3, color = "gray50") +  
+  annotate("text", x = 30, y = -Inf, label = "girls", 
+           hjust = 1, vjust = -0.5, size = 3, color = "gray50") +  
+  scale_color_manual(values = c("TRUE" = "#1AC9C9", "FALSE" = "red")) + 
+  scale_x_continuous(limits = c(-60, 60)) +  # Fixed x-axis range (-60, 60)
+  labs(title = "mean_math", 
+       x = "diff", y = "country",
+       color = "diff > 0") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 8),  
+        legend.position = "none") +
+  NULL
+
+
+p_read <- ggplot(diff_data, aes(x = read_diff, y = country, color = read_diff > 0)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) +
+  annotate("text", x = -30, y = -Inf, label = "boys", 
+           hjust = 0, vjust = -0.5, size = 3, color = "gray50") +
+  annotate("text", x = 30, y = -Inf, label = "girls", 
+           hjust = 1, vjust = -0.5, size = 3, color = "gray50") +
+  scale_color_manual(values = c("TRUE" = "#1AC9C9", "FALSE" = "red")
+                     ) +
+  scale_x_continuous(limits = c(-60, 60)) +
+  labs(title = "mean_read", 
+       x = "diff", y = NULL, 
+       color = NULL) +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(),
+        legend.position = "none") +
+  NULL
+
+
+p_science <- ggplot(diff_data, aes(x = science_diff, y = country, color = science_diff > 0)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.5) +
+  annotate("text", x = -30, y = -Inf, label = "boys", 
+           hjust = 0, vjust = -0.5, size = 3, color = "gray50") +
+  annotate("text", x = 30, y = -Inf, label = "girls", 
+           hjust = 1, vjust = -0.5, size = 3, color = "gray50") +
+  scale_color_manual(values = c("TRUE" = "#1AC9C9", "FALSE" = "red")
+                     ) +
+  scale_x_continuous(limits = c(-60, 60)) + 
+  labs(title = "mean_sci", 
+       x = "diff", y = NULL,
+       color = NULL) +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position = "none") +
+  NULL
+
+
+legend <- get_legend(p_math + theme(legend.position = "right"))  
+p_math_no_legend <- p_math + theme(legend.position = "none")
+
+# Merge three charts
+combined_plots <- plot_grid(p_math_no_legend, p_read, p_science, 
+                            ncol = 3, nrow = 1, align = "h",
+                            rel_widths = c(1, 1, 1))  
+
+# Add the legend to the right
+combined_plot_base <- plot_grid(combined_plots, legend, 
+                                ncol = 2, nrow = 1, rel_widths = c(3, 0.5)) 
+
+# Add title and subtitle
+combined_plot <- ggdraw() +  
+  draw_label("Average gender difference (diff= female- male) per Country ", 
+             fontface = 'bold', x = 0.5, y = 0.95, size = 12) + 
+  draw_label("Gender gap in reading is universal, but math and science gaps are not.",
+             fontface = 'italic', x = 0.5, y = 0.90, size = 10) + 
+  draw_plot(combined_plot_base, x = 0, y = 0.05, width = 1, height = 0.85) 
+
+# Display the merged graph
+print(combined_plot)
+
+```
+
+
+
+
+
+
+
+

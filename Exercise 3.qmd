@@ -1,0 +1,88 @@
+---
+title: "Exercise 3"
+format: html
+editor: visual
+---
+
+```{r load, warning = FALSE, message = FALSE}
+# Load necessary packages
+library(tidyverse)
+library(DBI)
+library(duckdb)
+library(dbplyr)
+library(here)
+library(dplyr) 
+library(dbplyr)
+```
+
+
+```{r}
+
+con <- dbConnect(duckdb::duckdb())
+
+actors <- read_csv(here("Actors.csv"))
+castings <- read_csv(here("Castings.csv"))
+directors <- read_csv(here("Directors.csv"))
+movies <- read_csv(here( "Movies.csv"))
+movies_and_directors <- read_csv(here("MoviesAndDirectors.csv"))
+
+dbWriteTable(con, "actors", actors)
+dbWriteTable(con, "castings", castings)
+dbWriteTable(con, "directors", directors)
+dbWriteTable(con, "movies", movies)
+dbWriteTable(con, "movies_and_directors", movies_and_directors)
+
+actors_db <- tbl(con, "actors")
+castings_db <- tbl(con, "castings")
+directors_db <- tbl(con, "directors")
+movies_db <- tbl(con, "movies")
+movies_directors_db <- tbl(con, "movies_and_directors")
+
+# Using tbl Objects
+partnerships <- movies_db %>%
+  inner_join(directors_db %>% rename(director_name = Name), by = "DirectorID") %>%
+  inner_join(castings_db, by = "MovieID") %>%
+  inner_join(actors_db %>% rename(actor_name = Name), by = "ActorID") %>%
+  group_by(director_name, actor_name) %>%
+  summarise(collaborations = n(), .groups = "drop") %>%
+  arrange(desc(collaborations))
+
+# View the first few lines of the results
+head(partnerships, 10)
+
+
+```
+
+
+```{r}
+
+# Display the generated SQL query
+show_query(partnerships)
+```
+
+
+
+```{r}
+
+actor_stats <- actors_db %>%
+  rename(Name.x = Name) %>%  
+  left_join(castings_db, by = "ActorID") %>%
+  left_join(movies_db, by = "MovieID") %>%
+  left_join(directors_db %>% rename(Name.y = Name), by = "DirectorID") %>%  
+  group_by(Name.x) %>%
+  summarise(
+    unique_directors = n_distinct(Name.y, na.rm = TRUE),
+    total_movies = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(unique_directors))
+
+# Execute and collect results
+result <- collect(actor_stats)
+
+# Display the results
+print(result)
+
+# Display the generated SQL query
+show_query(actor_stats)
+```
