@@ -1,0 +1,199 @@
+---
+title: "Exercise 4"
+format: html
+editor: visual
+---
+
+```{r load,echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary packages
+library(knitr)
+library(readr)
+library(dplyr)
+```
+
+
+# Introduction
+
+This experiment uses simulations to compare two commonly used tests for 2×2 contingency tables: Pearson's chi-square test and Fisher's exact test. First, the two methods are compared using given data. Furthermore, 10,000 simulations are repeated in four scenarios, and the rejection rates of the two tests at significance levels of 10%, 5%, and 1% are statistically compared. The overall results show that, for larger sample sizes (n=100 vs. n=100), the rejection rates of both methods approach the nominal significance level. For smaller sample sizes (n=20 vs. n=20), both methods exhibit significant conservatism, especially at low probability of success (p=0.2). The empirical rejection rate is significantly lower than the nominal level. Fisher's rejection rate is slightly higher than the chi-squared rate in some small sample sizes, but the overall difference is not significant.
+
+
+# Analyzing Gender Differences in Adolescent Study Habits
+
+## Methods
+
+We used the provided sample data: a table showing the relationship between study and gender. The data was divided into two groups: those currently studying and those not studying, for males and females respectively. The survey sample consisted of 36 adolescents (18 males and 36 females). The data was presented as a 2x2 contingency table as follows:
+
+```{r table,echo = FALSE, warning = FALSE}
+# Create the contingency table
+data_matrix <- matrix(c(3, 27, 33, 9), nrow = 2, byrow = TRUE)
+rownames(data_matrix) <- c("Studying", "Not studying")
+colnames(data_matrix) <- c("Men", "Women")
+print(data_matrix)
+
+```
+Only 3 males are currently studying, while 27 females are currently studying. This preliminarily suggests that females are more likely to study, but this needs to be statistically tested to verify its significance.
+
+Hypothesis: Males and females have the same proportion of students. We will conduct an independence test to examine whether there is a significant association between gender and study status.
+
+## Results
+
+
+```{r}
+
+chisq_result <- chisq.test(data_matrix)
+print(chisq_result)
+
+```
+1. Chi-Square Test Results:
+
+$X² = 30.229$
+$df = 1$
+$p-value = 3.84 × 10⁻⁸$
+
+Since the p-value is much less than 0.05, we reject the null hypothesis, indicating a significant association between gender and academic status.
+
+
+```{r}
+fisher_result <- fisher.test(data_matrix)
+print(fisher_result)
+```
+
+2. Fisher test results:
+
+$p-value = 8.418 × 10⁻⁹$
+Alternative hypothesis: True odds ratio ≠ 1
+95% confidence interval: [0.005139, 0.138391]
+$odds ratio = 0.032474$
+
+The p-value is also extremely small, confirming the rejection of the null hypothesis. $odds ratio = 0.032$ indicates that women are approximately 31 times more likely to study than men. The confidence interval does not contain 1, further supporting a significant association. The precision of this test makes it superior to the chi-square test in this example.
+
+## Discussion
+
+Both tests showed strong gender differences: the proportion of female adolescents learning was significantly higher than that of males (p < 0.001). The p-value of the Fisher's exact test was slightly lower than that of the chi-square test (8.42e-09 vs. 3.84e-08), consistent with the Fisher's more precise nature in small sample sizes.
+The results are based on a small sample size of 36, which may be affected by selection bias. In practice, a larger sample size should be used to improve generalization. This highlights the value of the Fisher's test in contingency table analysis, especially when the chi-square assumption is violated.
+
+***
+
+# Investigate the conservatism of Fisher's exact test through simulation studies
+
+
+## Methods
+
+Four simulation settings were designed:
+
+small, small p: Men = 20, Women = 20, success rate = 0.20;
+small, normal p: Men = 20, Women = 20, success rate = 0.50;
+large, small p: Men = 100, Women = 100, success rate = 0.20;
+large, normal p: Men = 100, Women = 100, success rate = 0.50.
+
+Each setting was replicated 10,000 times independently.
+
+Each simulation first sampled the "Studying" counts, leaving the remaining "Not-Studying" counts. If a sampling result resulted in a sum of 0 for both sexes (i.e., the first row was all 0s), re sample the result according to the question to replace the result. This prevents $χ²$ from reporting an error or being ambiguous in this extreme case.
+Statistical Tests
+For each 2×2 table, both the Pearson chi-square test and Fisher's exact test were run.
+The p-value for each test was recorded, and the rejection rate was calculated at α = 10%, 5%, and 1% as the empirical Type I error.
+To ensure reproducibility, the random seed was fixed before the simulation began.
+
+
+```{r}
+
+set.seed(12345)
+# Function to simulate one 2x2 table 
+simulate_table <- function(n_men, n_women, success_rate = 0.5) {
+  repeat {  
+    studying_men <- rbinom(1, n_men, success_rate)
+    studying_women <- rbinom(1, n_women, success_rate)
+    not_studying_men <- n_men - studying_men
+    not_studying_women <- n_women - studying_women
+    
+    table <- matrix(c(studying_men, studying_women, 
+                      not_studying_men, not_studying_women),
+                    nrow = 2, byrow = TRUE)
+    
+    if (sum(table[1, ]) > 0) break  
+  }
+  return(table)
+}
+
+# Function to run tests and get p-values
+run_tests <- function(table) {
+  chisq_p <- tryCatch({
+    suppressWarnings(chisq.test(table)$p.value)
+  }, error = function(e) 1)  # If error, p=1 (no rejection)
+  
+  fisher_p <- fisher.test(table)$p.value
+  
+  c(chisq = chisq_p, fisher = fisher_p)
+}
+
+# Settings for 4 scenarios
+settings <- list(
+  small_low = list(n_men = 20, n_women = 20, success_rate = 0.2, sims = 10000),
+  small_norm = list(n_men = 20, n_women = 20, success_rate = 0.5, sims = 10000),
+  large_low = list(n_men = 100, n_women = 100, success_rate = 0.2, sims = 10000),
+  large_norm = list(n_men = 100, n_women = 100, success_rate = 0.5, sims = 10000)
+)
+
+# Alphas
+alphas <- c(0.10, 0.05, 0.01)
+```
+
+```{r}
+# Run simulations and collect results
+all_results <- data.frame()
+
+for (name in names(settings)) {
+  setting <- settings[[name]]
+  cat("Simulating", name, "...\n")
+  
+  sim_pvals <- replicate(setting$sims, {
+    table <- simulate_table(setting$n_men, setting$n_women, setting$success_rate)
+    run_tests(table)
+  })
+  
+  # Transpose to data frame
+  sim_df <- as.data.frame(t(sim_pvals))
+  sim_df$Setting <- name
+  
+  all_results <- rbind(all_results, sim_df)
+}
+
+# Compute rejection rates
+rejection_rates <- all_results %>%
+  group_by(Setting) %>%
+  summarise(
+    Chisq_10 = mean(chisq < 0.10, na.rm = TRUE),
+    Chisq_5 = mean(chisq < 0.05, na.rm = TRUE),
+    Chisq_1 = mean(chisq < 0.01, na.rm = TRUE),
+    Fisher_10 = mean(fisher < 0.10, na.rm = TRUE),
+    Fisher_5 = mean(fisher < 0.05, na.rm = TRUE),
+    Fisher_1 = mean(fisher < 0.01, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    Chisq_10 = round(Chisq_10, 3),
+    Chisq_5 = round(Chisq_5, 3),
+    Chisq_1 = round(Chisq_1, 3),
+    Fisher_10 = round(Fisher_10, 3),
+    Fisher_5 = round(Fisher_5, 3),
+    Fisher_1 = round(Fisher_1, 3)
+  )
+
+# Display table
+kable(rejection_rates, 
+      
+      col.names = c(" ", "χ² (10%)", "χ² (5%)", "χ² (1%)", 
+                    "Fisher (10%)", "Fisher (5%)", "Fisher (1%)"))
+```
+
+## result
+
+In the two cases with large sample sizes, the empirical rejection rate is close to the nominal 0.05 (for example, large_norm is 0.041 at the 5% level), and the results of the two tests are nearly identical. This indicates that when the sample size is sufficient, the difference between the Pearson χ² and the Fisher test is small, and both can effectively control the Type I error rate.
+
+In the case of smaller sample sizes, especially when the success rate is low (p=0.2), the empirical rejection rate is significantly lower than the nominal significance level. For example, at the 5% level, small_low has $χ² = 0.019$ and Fisher has $χ² = 0.023$. This indicates that both tests are conservative in these discrete, small sample scenarios.
+
+This reflects that the Fisher test is not always "more conservative"; its performance is affected by the discreteness of sample size and event probabilities. In very small sample sizes, the effects of discreteness can lead to conservative or slightly higher empirical rejection rates.
+
+## Conclusions
+
+This simulation shows that, under large sample conditions, the Pearson chi-squared test and the Fisher exact test perform similarly in controlling the Type I error rate. Under small sample conditions (n=20), especially when the probability of an event is low (p=0.2), the empirical Type I error rates of both methods are significantly lower than the nominal level. The Fisher rejection rate is slightly higher than the chi-squared test at some small sample points, but the overall difference is small. Both tests may exhibit conservative behavior in small sample settings. The Fisher exact test provides an exact p-value, but the literature suggests that it tends to be conservative, especially in small sample settings, meaning that its actual rejection rate is lower than the nominal level. The Fisher test is more conservative and is suitable for small sample sizes to avoid false positives.
